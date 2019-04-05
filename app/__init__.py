@@ -48,7 +48,7 @@ def create_app():
             response = {'message': access['message']}
             return jsonify(response), 401
 
-    @app.route('/notes/add', methods=['POST'])
+    @app.route('/notes', methods=['POST'])
     def note_add():
         access = check_authorization(request)
         if access['valid']:
