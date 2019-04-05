@@ -1,91 +1,24 @@
-from flask import Flask, request, abort, jsonify
+from flask import Flask
 from datetime import datetime, timedelta
-import db
+from flask_sqlalchemy import SQLAlchemy
 import jwt
 
 SECRET_KEY = 'this is secret key'
 
+# initialize db
+db = SQLAlchemy()
+
 
 def create_app():
     app = Flask(__name__)
+    app.config['DEBUG'] = True
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:postgres@127.0.0.1:5432/flask_api'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
 
-    @app.route('/auth/register', methods=['POST'])
-    def auth_register():
-        user = request.get_json()
-        conn = db.connect_database()
-        if db.add_user(conn, user):
-            return 'user register success'
-        else:
-            return 'user register fail'
-
-    @app.route('/auth/login', methods=['POST'])
-    def auth_login():
-        data = request.get_json()
-        conn = db.connect_database()
-        user = db.get_user_by_username(conn, data['username'])
-        if data['password'] == user['password']:
-            access_token = generate_token(user['id'])
-            if access_token:
-                response = {
-                    'message': 'You logged in successfully.',
-                    'access_token': access_token.decode()
-                }
-                return jsonify(response), 200
-        else:
-            response = {
-                'message': 'Invalid username or password, Please try again.'
-            }
-            return jsonify(response), 401
-
-    @app.route('/notes', methods=['GET'])
-    def note_list():
-        access = check_authorization(request)
-        if access['valid']:
-            conn = db.connect_database()
-            notes = db.get_all(conn)
-            return jsonify(notes), 200
-        else:
-            response = {'message': access['message']}
-            return jsonify(response), 401
-
-    @app.route('/notes', methods=['POST'])
-    def note_add():
-        access = check_authorization(request)
-        if access['valid']:
-            note = request.get_json()
-            conn = db.connect_database()
-            if db.add_note(conn, note):
-                response = {'message': 'notes add success'}
-                return jsonify(response), 200
-            else:
-                response = {'message': 'notes add fail'}
-                return jsonify(response), 500
-        else:
-            response = {'message': access['message']}
-            return jsonify(response), 401
-
-    @app.route('/notes/<int:nid>', methods=['GET', 'PUT', 'DELETE'])
-    def notes_manipulation(nid):
-        access = check_authorization(request)
-        if access['valid']:
-            conn = db.connect_database()
-            if request.method == 'GET':
-                note = db.get_note(conn, nid)
-                if note:
-                    return jsonify(note)
-            elif request.method == 'PUT':
-                note = request.get_json()
-                note_update = db.update_note(conn, nid, note)
-                return jsonify(note_update)
-            else:
-                if db.del_note(conn, nid):
-                    return 'delete success'
-
-            response = {'message': 'resource not found'}
-            return jsonify(response), 404
-        else:
-            response = {'message': access['message']}
-            return jsonify(response), 401
+    from .views import auth_blueprint, note_blueprint
+    app.register_blueprint(auth_blueprint)
+    app.register_blueprint(note_blueprint)
 
     return app
 
