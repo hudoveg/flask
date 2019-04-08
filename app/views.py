@@ -70,11 +70,11 @@ login_view = LoginView.as_view('login_view')
 
 # Add the url rule for registering a user
 auth_blueprint.add_url_rule(
-    '/auth/register',
+    '/register',
     view_func=registration_view,
     methods=['POST'])
 auth_blueprint.add_url_rule(
-    '/auth/login',
+    '/login',
     view_func=login_view,
     methods=['POST']
 )
@@ -176,18 +176,13 @@ class NoteView(MethodView):
 note_view = NoteView.as_view('note_view')
 
 note_blueprint.add_url_rule(
-    '/notes/',
+    '/',
     defaults={'note_id': None},
     view_func=note_view,
-    methods=['GET']
+    methods=['GET', 'POST']
 )
 note_blueprint.add_url_rule(
-    '/notes/',
-    view_func=note_view,
-    methods=['POST']
-)
-note_blueprint.add_url_rule(
-    '/notes/<int:note_id>',
+    '/<int:note_id>',
     view_func=note_view,
     methods=['GET', 'PUT', 'DELETE']
 )

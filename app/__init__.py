@@ -17,8 +17,8 @@ def create_app():
     db.init_app(app)
 
     from .views import auth_blueprint, note_blueprint
-    app.register_blueprint(auth_blueprint)
-    app.register_blueprint(note_blueprint)
+    app.register_blueprint(auth_blueprint, url_prefix='/auth')
+    app.register_blueprint(note_blueprint, url_prefix='/notes')
 
     return app
 
