@@ -41,3 +41,39 @@ class Note(db.Model):
 
     def __repr__(self):
         return "<Note: {} - {}".format(self.title, self.body)
+
+
+class Author(db.Model):
+    __tablename__ = 'authors'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(256), nullable=False, unique=True)
+    books = db.relationship('Book', back_populates='author')
+
+
+class Book(db.Model):
+    __tablename__ = 'books'
+    id = db.Column(db.Integer, primary_key=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('authors.id'))
+    author = db.relationship('Author', back_populates='books')
+
+
+class Publisher(db.Model):
+    __tablename__ = 'publishers'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(256), nullable=False, unique=True)
+
+
+class Category(db.Model):
+    __tablename__ = 'categories'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(256), nullable=False, unique=True)
+
+
+class Review(db.Model):
+    __tablename__ = 'reviews'
+    id = db.Column(db.Integer, primary_key=True)
+    book = None
+    user = None
+    rate = None
+    title = None
+    comment = None
