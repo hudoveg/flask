@@ -1,8 +1,8 @@
 from flask import Blueprint
 from flask.views import MethodView
 from flask import make_response, request, jsonify, abort
-from app.models import User, Note
-from app import generate_token, check_authorization
+from .models import User, Note
+from .auth import generate_token, check_access
 
 
 auth_blueprint = Blueprint('auth', __name__)
@@ -83,94 +83,78 @@ note_blueprint = Blueprint('note', __name__)
 
 
 class NoteView(MethodView):
+    @check_access
     def get(self, note_id):
-        access = check_authorization(request)
-        if access['valid']:
-            if note_id is None:
-                # return a list of notes
-                notes = Note.query.all()
-                response = []
-                for note in notes:
-                    response.append({'id': note.id, 'title': note.title, 'body': note.body})
+        if note_id is None:
+            # return a list of notes
+            notes = Note.query.all()
+            response = []
+            for note in notes:
+                response.append({'id': note.id, 'title': note.title, 'body': note.body})
+            return make_response(jsonify(response)), 200
+        else:
+            # expose a single note
+            note = Note.query.filter_by(id=note_id).first()
+            response = {'id': note.id, 'title': note.title, 'body': note.body}
+            if note:
                 return make_response(jsonify(response)), 200
             else:
-                # expose a single note
-                note = Note.query.filter_by(id=note_id).first()
-                response = {'id': note.id, 'title': note.title, 'body': note.body}
-                if note:
-                    return make_response(jsonify(response)), 200
-                else:
-                    abort(404)
-        else:
-            response = {'message': access['message']}
-            return jsonify(response), 401
+                abort(404)
 
+    @check_access
     def post(self):
-        access = check_authorization(request)
-        if access['valid']:
-            try:
-                post_data = request.get_json()
-                note = Note(post_data['title'], post_data['body'])
+        try:
+            post_data = request.get_json()
+            note = Note(post_data['title'], post_data['body'])
+            note.save()
+            response = {
+                'id': note.id,
+                'title': note.title,
+                'body': note.body
+            }
+            return make_response(jsonify(response)), 201
+        except Exception as e:
+            response = {'message': str(e)}
+            return make_response(jsonify(response)), 500
+
+    @check_access
+    def put(self, note_id):
+        try:
+            data_put = request.get_json()
+            note = Note.query.filter_by(id=note_id).first()
+            if note:
+                title = data_put.get('title', None)
+                body = data_put.get('body', None)
+                if title:
+                    note.title = title
+                if body:
+                    note.body = body
                 note.save()
                 response = {
                     'id': note.id,
                     'title': note.title,
                     'body': note.body
                 }
-                return make_response(jsonify(response)), 201
-            except Exception as e:
-                response = {'message': str(e)}
-                return make_response(jsonify(response)), 500
-        else:
-            response = {'message': access['message']}
-            return make_response(jsonify(response)), 401
+                return make_response(jsonify(response)), 200
+            else:
+                abort(404)
+        except Exception as e:
+            response = {'message': str(e)}
+            return make_response(jsonify(response)), 500
 
-    def put(self, note_id):
-        access = check_authorization(request)
-        if access['valid']:
-            try:
-                data_put = request.get_json()
-                note = Note.query.filter_by(id=note_id).first()
-                if note:
-                    title = data_put.get('title', None)
-                    body = data_put.get('body', None)
-                    if title:
-                        note.title = title
-                    if body:
-                        note.body = body
-                    note.save()
-                    response = {
-                        'id': note.id,
-                        'title': note.title,
-                        'body': note.body
-                    }
-                    return make_response(jsonify(response)), 200
-                else:
-                    abort(404)
-            except Exception as e:
-                response = {'message': str(e)}
-                return make_response(jsonify(response)), 500
-        else:
-            response = {'message': access['message']}
-            return make_response(jsonify(response)), 401
-
+    @check_access
     def delete(self, note_id):
-        access = check_authorization(request)
-        if access['valid']:
-            try:
-                note = Note.query.filter_by(id=note_id).first()
-                if note:
-                    note.delete()
-                    response = {'message': 'note {} deleted'.format(note.id)}
-                    return make_response(jsonify(response)), 200
-                else:
-                    abort(404)
-            except Exception as e:
-                response = {'message': str(e)}
-                return make_response(jsonify(response)), 500
-        else:
-            response = {'message': access['message']}
-            return make_response(jsonify(response)), 401
+        try:
+            note = Note.query.filter_by(id=note_id).first()
+            if note:
+                note.delete()
+                response = {'message': 'note {} deleted'.format(note.id)}
+                return make_response(jsonify(response)), 200
+            else:
+                abort(404)
+        except Exception as e:
+            response = {'message': str(e)}
+            return make_response(jsonify(response)), 500
 
 
 note_view = NoteView.as_view('note_view')
