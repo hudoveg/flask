@@ -85,7 +85,7 @@ class Publisher(Base):
     __tablename__ = 'publishers'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256), nullable=False, unique=True)
-    books = db.relationship('Book')
+    books = db.relationship('Book', backref='publisher')
 
     def __repr__(self):
         return '<%r %r>' % (__class__, self.name)
@@ -95,7 +95,7 @@ class Category(Base):
     __tablename__ = 'categories'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256), nullable=False, unique=True)
-    books = db.relationship('Book')
+    books = db.relationship('Book', backref='category')
 
     def __repr__(self):
         return '<%r %r>' % (__class__, self.name)
