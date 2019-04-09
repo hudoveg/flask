@@ -19,7 +19,7 @@ def check_access(function):
 
 def generate_token(user_id):
     payload = {
-        'exp': datetime.utcnow() + timedelta(minutes=5),
+        'exp': datetime.utcnow() + timedelta(minutes=540),
         'iat': datetime.utcnow(),
         'sub': user_id
     }
