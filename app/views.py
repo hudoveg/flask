@@ -594,12 +594,26 @@ class ReviewView(MethodView):
         if record_id is None:
             rows = Review.query.all()
             response = []
-            for row in rows:
-                response.append({'id': row.id, 'name': row.name})
+            for record in rows:
+                response.append({
+                    'id': record.id,
+                    'username': record.user.username,
+                    'book': record.book.title,
+                    'rate': record.rate,
+                    'title': record.title,
+                    'comment': record.comment
+                })
             return make_response(jsonify(response)), 200
         else:
             record = Review.query.filter_by(id=record_id).first()
-            response = {'id': record.id, 'name': record.name}
+            response = {
+                'id': record.id,
+                'username': record.user.username,
+                'book': record.book.title,
+                'rate': record.rate,
+                'title': record.title,
+                'comment': record.comment
+            }
             if record:
                 return make_response(jsonify(response)), 200
             else:
@@ -610,7 +624,17 @@ class ReviewView(MethodView):
     def post(self):
         try:
             post_data = request.get_json()
-            record = Review(post_data['name'])
+            user = User.query.filter_by(username=post_data['user']).first()
+            book = Book.query.filter_by(id=post_data['book']).first()
+            if not user:
+                response = {'message': '"user" property is require'}
+                return make_response(jsonify(response)), 400
+            if not book:
+                response = {'message': '"book" property is require'}
+                return make_response(jsonify(response)), 400
+
+            record = Review(title=post_data['title'], user=user, book=book,
+                            rate=post_data['rate'], comment=post_data['comment'])
             record.save()
             response = {
                 'id': record.id,
@@ -637,7 +661,11 @@ class ReviewView(MethodView):
                 record.save()
                 response = {
                     'id': record.id,
-                    'name': record.name
+                    'username': record.user.username,
+                    'book': record.book.title,
+                    'rate': record.rate,
+                    'title': record.title,
+                    'comment': record.comment
                 }
                 return make_response(jsonify(response)), 200
             else:

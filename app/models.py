@@ -22,8 +22,8 @@ class User(Base):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(256), nullable=False, unique=True)
     password = db.Column(db.String(256), nullable=False)
-    orders = db.relationship('Order')
-    reviews = db.relationship('Review')
+    orders = db.relationship('Order', backref='user')
+    reviews = db.relationship('Review', backref='user')
 
     def __init__(self, username, password):
         self.username = username
@@ -75,7 +75,7 @@ class Book(Base):
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'))
     title = db.Column(db.String(256))
     price = db.Column(db.Integer)
-    reviews = db.relationship('Review')
+    reviews = db.relationship('Review', backref='book')
 
     def __repr__(self):
         return '<%r %r>' % (__class__, self.title)
