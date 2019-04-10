@@ -13,11 +13,12 @@ def create_app(config_name):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db.init_app(app)
 
-    from .views import auth_blueprint, note_blueprint, author_blueprint
+    from .views import auth_blueprint, note_blueprint, author_blueprint, user_blueprint
     from .views import publisher_blueprint, category_blueprint, book_blueprint
     from .views import review_blueprint, order_blueprint, order_item_blueprint
     app.register_blueprint(auth_blueprint, url_prefix='/auth')
     app.register_blueprint(note_blueprint, url_prefix='/notes')
+    app.register_blueprint(user_blueprint, url_prefix='/users')
     app.register_blueprint(author_blueprint, url_prefix='/authors')
     app.register_blueprint(publisher_blueprint, url_prefix='/publishers')
     app.register_blueprint(category_blueprint, url_prefix='/categories')

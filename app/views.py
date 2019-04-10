@@ -5,16 +5,13 @@ from .models import User, Note, Author, Publisher, Category, Book, Review, Order
 from .auth import generate_token, check_access
 
 
-auth_blueprint = Blueprint('auth', __name__)
-
-
 class RegistrationView(MethodView):
     def post(self):
-        user = User.query.filter_by(username=request.data['username']).first()
+        post_data = request.get_json()
+        user = User.query.filter_by(username=post_data['username']).first()
 
         if not user:
             try:
-                post_data = request.data
                 username = post_data['username']
                 password = post_data['password']
                 user = User(username, password)
@@ -68,6 +65,7 @@ class LoginView(MethodView):
 registration_view = RegistrationView.as_view('registration_view')
 login_view = LoginView.as_view('login_view')
 
+auth_blueprint = Blueprint('auth', __name__)
 # Add the url rule for registering a user
 auth_blueprint.add_url_rule(
     '/register',
@@ -77,6 +75,102 @@ auth_blueprint.add_url_rule(
     '/login',
     view_func=login_view,
     methods=['POST']
+)
+
+
+class UserListView(MethodView):
+    @check_access
+    def get(self, record_id):
+        if record_id is None:
+            rows = User.query.all()
+            response = []
+            for row in rows:
+                response.append({'id': row.id, 'username': row.username})
+            return make_response(jsonify(response)), 200
+        else:
+            record = User.query.filter_by(id=record_id).first()
+            response = {'id': record.id, 'username': record.username}
+            if record:
+                return make_response(jsonify(response)), 200
+            else:
+                response = {'message': 'resource not found'}
+                return make_response(jsonify(response)), 404
+
+    @check_access
+    def post(self):
+        try:
+            post_data = request.get_json()
+            record = User(username=post_data['username'], password=post_data['password'])
+            record.save()
+            response = {
+                'id': record.id,
+                'username': record.username
+            }
+            return make_response(jsonify(response)), 201
+        except Exception as e:
+            response = {'message': str(e)}
+            return make_response(jsonify(response)), 500
+
+    @check_access
+    def put(self, record_id):
+        try:
+            data_put = request.get_json()
+            record = User.query.filter_by(id=record_id).first()
+            if record:
+                username = data_put.get('username', None)
+                if username:
+                    record.username = username
+                password = data_put.get('password', None)
+                if password:
+                    record.password = password
+                record.save()
+                response = {
+                    'id': record.id,
+                    'name': record.name
+                }
+                return make_response(jsonify(response)), 200
+            else:
+                response = {'message': 'user not found'}
+                return make_response(jsonify(response)), 404
+        except Exception as e:
+            response = {'message': str(e)}
+            return make_response(jsonify(response)), 500
+
+    @check_access
+    def delete(self, record_id):
+        try:
+            record = User.query.filter_by(id=record_id).first()
+            if record:
+                record.delete()
+                response = {'message': 'user {} deleted'.format(record.id)}
+                return make_response(jsonify(response)), 200
+            else:
+                response = {'message': 'resource not found'}
+                return make_response(jsonify(response)), 404
+        except Exception as e:
+            response = {'message': str(e)}
+            return make_response(jsonify(response)), 500
+
+
+user_blueprint = Blueprint('users', __name__)
+
+user_view = UserListView.as_view('user_view')
+
+user_blueprint.add_url_rule(
+    '/',
+    defaults={'record_id': None},
+    view_func=user_view,
+    methods=['GET']
+)
+user_blueprint.add_url_rule(
+    '/',
+    view_func=user_view,
+    methods=['POST']
+)
+user_blueprint.add_url_rule(
+    '/<int:record_id>',
+    view_func=user_view,
+    methods=['GET', 'PUT', 'DELETE']
 )
 
 
