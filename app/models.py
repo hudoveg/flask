@@ -36,21 +36,6 @@ class User(Base):
         return '<%r %r>' % (__class__, self.username)
 
 
-class Note(Base):
-    __tablename__ = 'notes'
-
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(256), nullable=False)
-    body = db.Column(db.Text, nullable=False)
-
-    def __init__(self, title, body):
-        self.title = title
-        self.body = body
-
-    def __repr__(self):
-        return '<%r %r>' % (__class__, self.id)
-
-
 class Author(Base):
     __tablename__ = 'authors'
     id = db.Column(db.Integer, primary_key=True)
@@ -126,7 +111,7 @@ class Order(Base):
     __tablename__ = 'orders'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    items = db.relationship('OrderItem')
+    items = db.relationship('OrderItem', backref='order', cascade="all, delete, delete-orphan")
     total_price = db.Column(db.Integer)
 
     def __repr__(self):
@@ -138,6 +123,8 @@ class OrderItem(Base):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'))
     quantity = db.Column(db.Integer)
+    book_id = db.Column(db.Integer, db.ForeignKey('books.id'))
+    book = db.relationship('Book')
     total_price = db.Column(db.Integer)
 
     def __repr__(self):

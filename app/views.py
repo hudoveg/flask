@@ -1,8 +1,31 @@
 from flask import Blueprint
 from flask.views import MethodView
-from flask import make_response, request, jsonify, abort
-from .models import User, Note, Author, Publisher, Category, Book, Review, Order, OrderItem
+from flask import make_response, request, jsonify
+from .models import User, Author, Publisher, Category, Book, Review, Order, OrderItem
 from .auth import generate_token, check_access
+from sqlalchemy import func
+from sqlalchemy import desc
+from sqlalchemy.sql.functions import coalesce
+
+
+def register_view(blueprint, view, endpoint, url='/', pk='record_id', pk_type='int'):
+    view_func = view.as_view(endpoint)
+    blueprint.add_url_rule(
+        url,
+        defaults={pk: None},
+        view_func=view_func,
+        methods=['GET']
+    )
+    blueprint.add_url_rule(
+        url,
+        view_func=view_func,
+        methods=['POST']
+    )
+    blueprint.add_url_rule(
+        '%s<%s:%s>' % (url, pk_type, pk),
+        view_func=view_func,
+        methods=['GET', 'PUT', 'DELETE']
+    )
 
 
 class RegistrationView(MethodView):
@@ -61,12 +84,9 @@ class LoginView(MethodView):
             return make_response(jsonify(response)), 500
 
 
-# Define the API resource
+auth_blueprint = Blueprint('auth', __name__)
 registration_view = RegistrationView.as_view('registration_view')
 login_view = LoginView.as_view('login_view')
-
-auth_blueprint = Blueprint('auth', __name__)
-# Add the url rule for registering a user
 auth_blueprint.add_url_rule(
     '/register',
     view_func=registration_view,
@@ -153,122 +173,7 @@ class UserListView(MethodView):
 
 
 user_blueprint = Blueprint('users', __name__)
-
-user_view = UserListView.as_view('user_view')
-
-user_blueprint.add_url_rule(
-    '/',
-    defaults={'record_id': None},
-    view_func=user_view,
-    methods=['GET']
-)
-user_blueprint.add_url_rule(
-    '/',
-    view_func=user_view,
-    methods=['POST']
-)
-user_blueprint.add_url_rule(
-    '/<int:record_id>',
-    view_func=user_view,
-    methods=['GET', 'PUT', 'DELETE']
-)
-
-
-class NoteView(MethodView):
-    @check_access
-    def get(self, note_id):
-        if note_id is None:
-            # return a list of notes
-            notes = Note.query.all()
-            response = []
-            for note in notes:
-                response.append({'id': note.id, 'title': note.title, 'body': note.body})
-            return make_response(jsonify(response)), 200
-        else:
-            # expose a single note
-            note = Note.query.filter_by(id=note_id).first()
-            response = {'id': note.id, 'title': note.title, 'body': note.body}
-            if note:
-                return make_response(jsonify(response)), 200
-            else:
-                abort(404)
-
-    @check_access
-    def post(self):
-        try:
-            post_data = request.get_json()
-            note = Note(post_data['title'], post_data['body'])
-            note.save()
-            response = {
-                'id': note.id,
-                'title': note.title,
-                'body': note.body
-            }
-            return make_response(jsonify(response)), 201
-        except Exception as e:
-            response = {'message': str(e)}
-            return make_response(jsonify(response)), 500
-
-    @check_access
-    def put(self, note_id):
-        try:
-            data_put = request.get_json()
-            note = Note.query.filter_by(id=note_id).first()
-            if note:
-                title = data_put.get('title', None)
-                body = data_put.get('body', None)
-                if title:
-                    note.title = title
-                if body:
-                    note.body = body
-                note.save()
-                response = {
-                    'id': note.id,
-                    'title': note.title,
-                    'body': note.body
-                }
-                return make_response(jsonify(response)), 200
-            else:
-                abort(404)
-        except Exception as e:
-            response = {'message': str(e)}
-            return make_response(jsonify(response)), 500
-
-    @check_access
-    def delete(self, note_id):
-        try:
-            note = Note.query.filter_by(id=note_id).first()
-            if note:
-                note.delete()
-                response = {'message': 'note {} deleted'.format(note.id)}
-                return make_response(jsonify(response)), 200
-            else:
-                abort(404)
-        except Exception as e:
-            response = {'message': str(e)}
-            return make_response(jsonify(response)), 500
-
-
-note_blueprint = Blueprint('note', __name__)
-
-note_view = NoteView.as_view('note_view')
-
-note_blueprint.add_url_rule(
-    '/',
-    defaults={'note_id': None},
-    view_func=note_view,
-    methods=['GET']
-)
-note_blueprint.add_url_rule(
-    '/',
-    view_func=note_view,
-    methods=['POST']
-)
-note_blueprint.add_url_rule(
-    '/<int:note_id>',
-    view_func=note_view,
-    methods=['GET', 'PUT', 'DELETE']
-)
+register_view(user_blueprint, UserListView, 'user_view')
 
 
 class AuthorView(MethodView):
@@ -343,25 +248,7 @@ class AuthorView(MethodView):
 
 
 author_blueprint = Blueprint('author', __name__)
-
-author_view = AuthorView.as_view('author_view')
-
-author_blueprint.add_url_rule(
-    '/',
-    defaults={'record_id': None},
-    view_func=author_view,
-    methods=['GET']
-)
-author_blueprint.add_url_rule(
-    '/',
-    view_func=author_view,
-    methods=['POST']
-)
-author_blueprint.add_url_rule(
-    '/<int:record_id>',
-    view_func=author_view,
-    methods=['GET', 'PUT', 'DELETE']
-)
+register_view(author_blueprint, AuthorView, 'author_view')
 
 
 class PublisherView(MethodView):
@@ -436,25 +323,7 @@ class PublisherView(MethodView):
 
 
 publisher_blueprint = Blueprint('publisher', __name__)
-
-publisher_view = PublisherView.as_view('publisher_view')
-
-publisher_blueprint.add_url_rule(
-    '/',
-    defaults={'record_id': None},
-    view_func=publisher_view,
-    methods=['GET']
-)
-publisher_blueprint.add_url_rule(
-    '/',
-    view_func=publisher_view,
-    methods=['POST']
-)
-publisher_blueprint.add_url_rule(
-    '/<int:record_id>',
-    view_func=publisher_view,
-    methods=['GET', 'PUT', 'DELETE']
-)
+register_view(publisher_blueprint, PublisherView, 'publisher_view')
 
 
 class CategoryView(MethodView):
@@ -529,25 +398,7 @@ class CategoryView(MethodView):
 
 
 category_blueprint = Blueprint('category', __name__)
-
-category_view = CategoryView.as_view('category_view')
-
-category_blueprint.add_url_rule(
-    '/',
-    defaults={'record_id': None},
-    view_func=category_view,
-    methods=['GET']
-)
-category_blueprint.add_url_rule(
-    '/',
-    view_func=category_view,
-    methods=['POST']
-)
-category_blueprint.add_url_rule(
-    '/<int:record_id>',
-    view_func=category_view,
-    methods=['GET', 'PUT', 'DELETE']
-)
+register_view(category_blueprint, CategoryView, 'category_view')
 
 
 class BookView(MethodView):
@@ -661,25 +512,28 @@ class BookView(MethodView):
 
 
 book_blueprint = Blueprint('book', __name__)
+register_view(book_blueprint, BookView, 'book_view')
 
-book_view = BookView.as_view('book_view')
 
-book_blueprint.add_url_rule(
-    '/',
-    defaults={'record_id': None},
-    view_func=book_view,
-    methods=['GET']
-)
-book_blueprint.add_url_rule(
-    '/',
-    view_func=book_view,
-    methods=['POST']
-)
-book_blueprint.add_url_rule(
-    '/<int:record_id>',
-    view_func=book_view,
-    methods=['GET', 'PUT', 'DELETE']
-)
+@book_blueprint.route('/best-seller')
+@check_access
+def book_best_seller():
+    rows = Book.query.\
+        outerjoin(OrderItem).\
+        group_by(Book.id).\
+        order_by(desc(coalesce(func.sum(OrderItem.quantity), 0))).\
+        all()
+    response = []
+    for record in rows:
+        response.append({
+            'id': record.id,
+            'title': record.title,
+            'author': record.author.name,
+            'publisher': record.publisher.name,
+            'category': record.category.name,
+            'price': record.price
+        })
+    return make_response(jsonify(response)), 200
 
 
 class ReviewView(MethodView):
@@ -719,7 +573,7 @@ class ReviewView(MethodView):
         try:
             post_data = request.get_json()
             user = User.query.filter_by(username=post_data['user']).first()
-            book = Book.query.filter_by(id=post_data['book']).first()
+            book = Book.query.filter_by(title=post_data['book']).first()
             if not user:
                 response = {'message': '"user" property is require'}
                 return make_response(jsonify(response)), 400
@@ -786,25 +640,7 @@ class ReviewView(MethodView):
 
 
 review_blueprint = Blueprint('review', __name__)
-
-review_view = ReviewView.as_view('review_view')
-
-review_blueprint.add_url_rule(
-    '/',
-    defaults={'record_id': None},
-    view_func=review_view,
-    methods=['GET']
-)
-review_blueprint.add_url_rule(
-    '/',
-    view_func=review_view,
-    methods=['POST']
-)
-review_blueprint.add_url_rule(
-    '/<int:record_id>',
-    view_func=review_view,
-    methods=['GET', 'PUT', 'DELETE']
-)
+register_view(review_blueprint, ReviewView, 'review_view')
 
 
 class OrderView(MethodView):
@@ -814,12 +650,43 @@ class OrderView(MethodView):
             rows = Order.query.all()
             response = []
             for row in rows:
-                response.append({'id': row.id, 'name': row.name})
+                order = {
+                    'id': row.id,
+                    'user': row.user.username,
+                    'total_price': row.total_price,
+                    'items': [],
+                    'create_at': row.created_at,
+                    'update_at': row.updated_at
+                }
+                for item in row.items:
+                    order['items'].append({
+                        'id': item.id,
+                        'book': item.book.title,
+                        'book_id': item.book.id,
+                        'quantity': item.quantity,
+                        'total_price': item.total_price
+                    })
+                response.append(order)
             return make_response(jsonify(response)), 200
         else:
-            record = Order.query.filter_by(id=record_id).first()
-            response = {'id': record.id, 'name': record.name}
-            if record:
+            row = Order.query.filter_by(id=record_id).first()
+            if row:
+                response = {
+                    'id': row.id,
+                    'user': row.user.username,
+                    'total_price': row.total_price,
+                    'items': [],
+                    'create_at': row.created_at,
+                    'update_at': row.updated_at
+                }
+                for item in row.items:
+                    response['items'].append({
+                        'id': item.id,
+                        'book': item.book.title,
+                        'book_id': item.book.id,
+                        'quantity': item.quantity,
+                        'total_price': item.total_price
+                    })
                 return make_response(jsonify(response)), 200
             else:
                 response = {'message': 'resource not found'}
@@ -829,12 +696,37 @@ class OrderView(MethodView):
     def post(self):
         try:
             post_data = request.get_json()
-            record = Order(post_data['name'])
+            user = User.query.filter_by(username=post_data['user']).first()
+            if not user:
+                return make_response(jsonify({'message': 'user is require'})), 400
+            items = []
+            order_total_price = 0
+            for item in post_data['items']:
+                book = Book.query.filter_by(title=item['book']).first()
+                if not book:
+                    return make_response(jsonify({'message': 'book is require'})), 400
+                quantity = item['quantity']
+                item_total_price = book.price * quantity
+                order_total_price += item_total_price
+                order_item = OrderItem(book=book, quantity=quantity, total_price=item_total_price)
+                items.append(order_item)
+            record = Order(user=user, items=items, total_price=order_total_price)
             record.save()
             response = {
                 'id': record.id,
-                'name': record.name
+                'user': record.user.username,
+                'total_price': record.total_price,
+                'items': [],
+                'create_at': record.created_at,
+                'update_at': record.updated_at
             }
+            for item in record.items:
+                response['items'].append({
+                    'id': item.id,
+                    'book': item.book.title,
+                    'quantity': item.quantity,
+                    'total_price': item.total_price
+                })
             return make_response(jsonify(response)), 201
         except Exception as e:
             response = {'message': str(e)}
@@ -842,25 +734,8 @@ class OrderView(MethodView):
 
     @check_access
     def put(self, record_id):
-        try:
-            data_put = request.get_json()
-            record = Order.query.filter_by(id=record_id).first()
-            if record:
-                name = data_put.get('name', None)
-                if name:
-                    record.name = name
-                record.save()
-                response = {
-                    'id': record.id,
-                    'name': record.name
-                }
-                return make_response(jsonify(response)), 200
-            else:
-                response = {'message': 'resource not found'}
-                return make_response(jsonify(response)), 404
-        except Exception as e:
-            response = {'message': str(e)}
-            return make_response(jsonify(response)), 500
+        response = {'message': 'not implemented'}
+        return make_response(jsonify(response)), 501
 
     @check_access
     def delete(self, record_id):
@@ -879,25 +754,7 @@ class OrderView(MethodView):
 
 
 order_blueprint = Blueprint('order', __name__)
-
-order_view = OrderView.as_view('order_view')
-
-order_blueprint.add_url_rule(
-    '/',
-    defaults={'record_id': None},
-    view_func=order_view,
-    methods=['GET']
-)
-order_blueprint.add_url_rule(
-    '/',
-    view_func=order_view,
-    methods=['POST']
-)
-order_blueprint.add_url_rule(
-    '/<int:record_id>',
-    view_func=order_view,
-    methods=['GET', 'PUT', 'DELETE']
-)
+register_view(order_blueprint, OrderView, 'order_view')
 
 
 class OrderItemView(MethodView):
@@ -907,12 +764,12 @@ class OrderItemView(MethodView):
             rows = OrderItem.query.all()
             response = []
             for row in rows:
-                response.append({'id': row.id, 'name': row.name})
+                response.append({'id': row.id, 'book': row.book.title, 'quantity': row.quantity, 'total_price': row.total_price, 'order': row.order.id})
             return make_response(jsonify(response)), 200
         else:
-            record = OrderItem.query.filter_by(id=record_id).first()
-            response = {'id': record.id, 'name': record.name}
-            if record:
+            row = OrderItem.query.filter_by(id=record_id).first()
+            response = {'id': row.id, 'book': row.book.title, 'quantity': row.quantity, 'total_price': row.total_price, 'order': row.order.id}
+            if row:
                 return make_response(jsonify(response)), 200
             else:
                 response = {'message': 'resource not found'}
@@ -935,25 +792,8 @@ class OrderItemView(MethodView):
 
     @check_access
     def put(self, record_id):
-        try:
-            data_put = request.get_json()
-            record = OrderItem.query.filter_by(id=record_id).first()
-            if record:
-                name = data_put.get('name', None)
-                if name:
-                    record.name = name
-                record.save()
-                response = {
-                    'id': record.id,
-                    'name': record.name
-                }
-                return make_response(jsonify(response)), 200
-            else:
-                response = {'message': 'resource not found'}
-                return make_response(jsonify(response)), 404
-        except Exception as e:
-            response = {'message': str(e)}
-            return make_response(jsonify(response)), 500
+        response = {'message': 'not implemented'}
+        return make_response(jsonify(response)), 501
 
     @check_access
     def delete(self, record_id):
@@ -972,9 +812,7 @@ class OrderItemView(MethodView):
 
 
 order_item_blueprint = Blueprint('order_item', __name__)
-
 order_item_view = OrderItemView.as_view('order_item_view')
-
 order_item_blueprint.add_url_rule(
     '/',
     defaults={'record_id': None},
@@ -982,12 +820,7 @@ order_item_blueprint.add_url_rule(
     methods=['GET']
 )
 order_item_blueprint.add_url_rule(
-    '/',
-    view_func=order_item_view,
-    methods=['POST']
-)
-order_item_blueprint.add_url_rule(
     '/<int:record_id>',
     view_func=order_item_view,
-    methods=['GET', 'PUT', 'DELETE']
+    methods=['GET']
 )
