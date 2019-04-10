@@ -1,0 +1,9 @@
+flask run --host=0.0.0.0
+export FLASK_APP="run.py"
+export APP_SETTINGS="development"
+export SECRET="a-long-string-of-random-characters-CHANGE-TO-YOUR-LIKING"
+export DATABASE_URL="postgresql://admin:postgres@127.0.0.1:5432/flask_api"
+
+python manage.py db init
+python manage.py db migrate
+python manage.py db upgrade
