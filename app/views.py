@@ -3,9 +3,9 @@ from flask.views import MethodView
 from flask import make_response, request, jsonify
 from .models import User, Author, Publisher, Category, Book, Review, Order, OrderItem
 from .auth import generate_token, check_access
-from sqlalchemy import func
-from sqlalchemy import desc
+from sqlalchemy import func, desc, cast, FLOAT
 from sqlalchemy.sql.functions import coalesce
+# from sqlalchemy.dialects import postgresql
 
 
 def register_view(blueprint, view, endpoint, url='/', pk='record_id', pk_type='int'):
@@ -249,6 +249,34 @@ class AuthorView(MethodView):
 
 author_blueprint = Blueprint('author', __name__)
 register_view(author_blueprint, AuthorView, 'author_view')
+
+
+@author_blueprint.route('/best-selling')
+def author_best_selling():
+    """
+    SELECT authors.*, COALESCE(SUM(order_items.quantity), 0) as quantity_sold
+    FROM authors
+    JOIN books ON authors.id = books.author_id
+    JOIN order_items ON order_items.book_id = books.id
+    GROUP BY authors.id
+    ORDER BY quantity_sold DESC
+    """
+    q = Author.query. \
+        add_column(func.sum(OrderItem.quantity).label('quantity_sold')). \
+        join(Author.books). \
+        join(OrderItem, Book.id == OrderItem.book_id). \
+        group_by(Author.id). \
+        order_by(desc('quantity_sold'))
+    # return str(q.statement.compile(dialect=postgresql.dialect()))
+    rows = q.all()
+    response = []
+    for record in rows:
+        response.append({
+            'id': record.Author.id,
+            'name': record.Author.name,
+            'quantity_sold': record.quantity_sold
+        })
+    return make_response(jsonify(response)), 200
 
 
 class PublisherView(MethodView):
@@ -515,23 +543,101 @@ book_blueprint = Blueprint('book', __name__)
 register_view(book_blueprint, BookView, 'book_view')
 
 
-@book_blueprint.route('/best-seller')
+@book_blueprint.route('/best-selling')
 @check_access
-def book_best_seller():
+def book_best_selling():
+    """
+    SELECT books.*, COALESCE(SUM(order_items.quantity), 0) as quantity_sold
+    FROM books LEFT OUTER JOIN order_items ON books.id = order_items.book_id
+    GROUP BY books.id
+    ORDER BY quantity_sold DESC;
+    """
     rows = Book.query.\
+        add_column(coalesce(func.sum(OrderItem.quantity), 0).label('quantity_sold')).\
         outerjoin(OrderItem).\
         group_by(Book.id).\
-        order_by(desc(coalesce(func.sum(OrderItem.quantity), 0))).\
+        order_by(desc('quantity_sold')).\
         all()
     response = []
     for record in rows:
         response.append({
-            'id': record.id,
-            'title': record.title,
-            'author': record.author.name,
-            'publisher': record.publisher.name,
-            'category': record.category.name,
-            'price': record.price
+            'id': record.Book.id,
+            'title': record.Book.title,
+            'author': record.Book.author.name,
+            'publisher': record.Book.publisher.name,
+            'category': record.Book.category.name,
+            'price': record.Book.price,
+            'quantity_sold': record.quantity_sold
+        })
+    return make_response(jsonify(response)), 200
+
+
+@book_blueprint.route('/best-rating')
+def book_best_rating():
+    """
+    SELECT books.*, COALESCE(SUM(reviews.rate) / COUNT(reviews), 0) as rating
+    FROM books LEFT OUTER JOIN reviews ON books.id = reviews.book_id
+    GROUP BY books.id
+    ORDER BY rating DESC;
+    """
+    rating_col = coalesce(cast(func.sum(Review.rate), FLOAT)/cast(func.count(Review.id), FLOAT), 0).\
+        label('rating')
+    rows = Book.query.\
+        add_column(rating_col). \
+        outerjoin(Review).\
+        group_by(Book.id).\
+        order_by(desc('rating')).\
+        all()
+    response = []
+    for record in rows:
+        response.append({
+            'id': record.Book.id,
+            'title': record.Book.title,
+            'author': record.Book.author.name,
+            'publisher': record.Book.publisher.name,
+            'category': record.Book.category.name,
+            'price': record.Book.price,
+            'rating': record.rating
+        })
+    return make_response(jsonify(response)), 200
+
+
+@book_blueprint.route('/literature/best-selling')
+def literature_books_best_selling():
+    """
+    SELECT books.*, literature_books_best_selling.quantity_sold
+    FROM books
+    JOIN (
+        SELECT literature_books.id, COALESCE(SUM(order_items.quantity), 0) as quantity_sold
+        FROM (SELECT * FROM books WHERE books.category_id = 2) AS literature_books
+        LEFT OUTER JOIN order_items ON literature_books.id = order_items.book_id
+        GROUP BY literature_books.id
+        ORDER BY quantity_sold DESC
+    ) AS literature_books_best_selling ON books.id = literature_books_best_selling.id;
+    """
+    literature_books = Book.query.\
+        with_entities(Book.id).\
+        filter_by(category_id=2).\
+        from_self().\
+        add_column(coalesce(func.sum(OrderItem.quantity), 0).label('quantity_sold')).\
+        outerjoin(OrderItem).\
+        group_by(Book.id).\
+        order_by(desc('quantity_sold')).\
+        subquery().alias()
+
+    rows = Book.query.join(literature_books, literature_books.c.books_id == Book.id).\
+        add_column(literature_books.c.quantity_sold).\
+        all()
+    response = []
+    for record in rows:
+        response.append({
+            'id': record.Book.id,
+            'title': record.Book.title,
+            'author': record.Book.author.name,
+            'publisher': record.Book.publisher.name,
+            'category': record.Book.category.name,
+            'price': record.Book.price,
+            'quantity_sold': record.quantity_sold
         })
     return make_response(jsonify(response)), 200
 
