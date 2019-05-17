@@ -1,11 +1,11 @@
 from flask import Blueprint
 from flask.views import MethodView
-from flask import make_response, request, jsonify
+from flask import make_response, request, jsonify, current_app
 from .models import User, Author, Publisher, Category, Book, Review, Order, OrderItem
 from .auth import generate_token, check_access
 from sqlalchemy import func, desc, cast, FLOAT
 from sqlalchemy.sql.functions import coalesce
-# from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects import postgresql
 
 
 def register_view(blueprint, view, endpoint, url='/', pk='record_id', pk_type='int'):
@@ -60,6 +60,10 @@ class RegistrationView(MethodView):
 
 class LoginView(MethodView):
     def post(self):
+        """
+
+        :return:
+        """
         try:
             data_post = request.get_json()
             user = User.query.filter_by(username=data_post['username']).first()
@@ -639,6 +643,51 @@ def literature_books_best_selling():
             'price': record.Book.price,
             'quantity_sold': record.quantity_sold
         })
+    return make_response(jsonify(response)), 200
+
+
+@book_blueprint.route('/search')
+def book_search():
+    """
+    SELECT books.*
+    FROM books
+    JOIN authors ON books.author_id = authors.id
+    WHERE authors.name LIKE '%' + @name '%' AND books.title LIKE '%' + @title + '%'
+    """
+
+    author_name = request.args.get('author')
+    book_title = request.args.get('title')
+    category_name = request.args.get('category')
+
+    q = Book.query
+
+    if author_name:
+        q = q.join(Author).filter(Author.name.ilike('{}%'.format(author_name)))
+    if book_title:
+        q = q.filter(Book.title.ilike('%{}%'.format(book_title)))
+    if category_name:
+        q = q.join(Category).filter(Category.name.ilike('%{}'.format(category_name)))
+
+    q.order_by(desc(Book.updated_at))
+    # return str(q.statement.compile(dialect=postgresql.dialect()))
+
+    current_app.logger.info(str(q.statement.compile(dialect=postgresql.dialect(),
+                                                    compile_kwargs={"literal_binds": True})))
+    response = []
+    for record in q:
+        response.append({
+            'id': record.id,
+            'title': record.title,
+            'author': record.author.name,
+            'publisher': record.publisher.name,
+            'category': record.category.name,
+            'price': record.price,
+        })
+        current_app.logger.info(repr(record))
+    try:
+        raise Exception('it must be an exception')
+    except Exception as e:
+        current_app.logger.exception(str(e))
     return make_response(jsonify(response)), 200
 
 
